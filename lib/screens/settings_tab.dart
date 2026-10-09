@@ -6,6 +6,7 @@ import '../providers/portfolio_provider.dart';
 import '../utils/theme.dart';
 import 'update_price_screen.dart';
 import 'goal_detail_screen.dart';
+import 'debts_screen.dart';
 
 class SettingsTab extends StatelessWidget {
   const SettingsTab({super.key});
@@ -52,6 +53,18 @@ class SettingsTab extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const GoalDetailScreen()),
+                );
+              },
+            ),
+            _buildDivider(),
+            _buildTile(
+              icon: Icons.handshake_outlined,
+              title: 'Sổ ghi nợ vàng & tiền',
+              subtitle: 'Theo dõi các khoản vay mượn và phải thu',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DebtsScreen()),
                 );
               },
             ),

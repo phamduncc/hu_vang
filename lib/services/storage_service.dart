@@ -4,6 +4,7 @@ import '../models/gold_type.dart';
 import '../models/gold_transaction.dart';
 import '../models/gold_price.dart';
 import '../models/gold_goal.dart';
+import '../models/gold_debt.dart';
 import '../models/app_settings.dart';
 
 class StorageService {
@@ -11,6 +12,7 @@ class StorageService {
   static const String _keyGoldTypes = 'hu_vang_gold_types';
   static const String _keyPrices = 'hu_vang_prices';
   static const String _keyGoal = 'hu_vang_goal';
+  static const String _keyDebts = 'hu_vang_debts';
   static const String _keySettings = 'hu_vang_settings';
   static const String _keyVersion = 'hu_vang_clean_version';
 
@@ -36,6 +38,7 @@ class StorageService {
     await saveGoldTypes(GoldType.defaultTypes);
     await savePrices({}); // Không lưu giá hard-code
     await saveTransactions([]); // Không lưu giao dịch hard-code
+    await saveDebts([]); // Không lưu nợ hard-code
     await saveGoal(GoldGoal.defaultGoal);
     await saveSettings(const AppSettings());
   }
@@ -55,6 +58,23 @@ class StorageService {
   Future<void> saveTransactions(List<GoldTransaction> transactions) async {
     final raw = jsonEncode(transactions.map((e) => e.toJson()).toList());
     await _prefs.setString(_keyTransactions, raw);
+  }
+
+  // --- Debts (Ghi nợ) ---
+  List<GoldDebt> loadDebts() {
+    final raw = _prefs.getString(_keyDebts);
+    if (raw == null) return [];
+    try {
+      final list = jsonDecode(raw) as List;
+      return list.map((e) => GoldDebt.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> saveDebts(List<GoldDebt> debts) async {
+    final raw = jsonEncode(debts.map((e) => e.toJson()).toList());
+    await _prefs.setString(_keyDebts, raw);
   }
 
   // --- Gold Types ---
@@ -130,6 +150,7 @@ class StorageService {
       'goldTypes': loadGoldTypes().map((e) => e.toJson()).toList(),
       'prices': loadPrices().map((k, v) => MapEntry(k, v.toJson())),
       'transactions': loadTransactions().map((e) => e.toJson()).toList(),
+      'debts': loadDebts().map((e) => e.toJson()).toList(),
       'goal': loadGoal().toJson(),
       'settings': loadSettings().toJson(),
     };
@@ -156,6 +177,12 @@ class StorageService {
             .map((e) => GoldTransaction.fromJson(e as Map<String, dynamic>))
             .toList();
         await saveTransactions(list);
+      }
+      if (data['debts'] != null) {
+        final list = (data['debts'] as List)
+            .map((e) => GoldDebt.fromJson(e as Map<String, dynamic>))
+            .toList();
+        await saveDebts(list);
       }
       if (data['goal'] != null) {
         await saveGoal(GoldGoal.fromJson(data['goal'] as Map<String, dynamic>));
@@ -195,6 +222,7 @@ class StorageService {
     await saveGoldTypes(GoldType.defaultTypes);
     await savePrices({});
     await saveTransactions([]);
+    await saveDebts([]);
     await saveGoal(GoldGoal.defaultGoal);
     await saveSettings(const AppSettings());
     await _prefs.setString(_keyVersion, '2.0_clean');

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/portfolio_provider.dart';
 import '../utils/theme.dart';
+import '../utils/formatters.dart';
 import '../widgets/metric_card.dart';
 import '../widgets/gold_jar_widget.dart';
 import '../widgets/gold_type_card.dart';
@@ -9,6 +10,7 @@ import '../widgets/transaction_tile.dart';
 import 'add_transaction_screen.dart';
 import 'update_price_screen.dart';
 import 'goal_detail_screen.dart';
+import 'debts_screen.dart';
 
 class DashboardTab extends StatelessWidget {
   final Function(int) onNavigateTab;
@@ -22,6 +24,7 @@ class DashboardTab extends StatelessWidget {
     final isHidden = provider.isAmountHidden;
     final recentTransactions = provider.transactions.take(3).toList();
     final typeMap = {for (var t in provider.goldTypes) t.id: t};
+    final unsettledDebtsCount = provider.debts.where((d) => !d.isSettled).length;
 
     return Scaffold(
       body: CustomScrollView(
@@ -49,6 +52,20 @@ class DashboardTab extends StatelessWidget {
               ],
             ),
             actions: [
+              IconButton(
+                tooltip: 'Sổ ghi nợ vàng & tiền',
+                icon: Badge(
+                  isLabelVisible: unsettledDebtsCount > 0,
+                  label: Text('$unsettledDebtsCount'),
+                  child: const Icon(Icons.handshake_outlined, color: AppTheme.goldBright),
+                ),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const DebtsScreen()),
+                  );
+                },
+              ),
               IconButton(
                 tooltip: 'Cập nhật giá vàng hôm nay',
                 icon: const Icon(Icons.price_change_outlined, color: AppTheme.goldBright),
@@ -108,9 +125,89 @@ class DashboardTab extends StatelessWidget {
                   },
                 ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
 
-                // 3. Gold Types Section (Portfolio Breakdown)
+                // 3. Sổ Ghi Nợ Shortcut Card
+                InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const DebtsScreen()),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(18),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: AppTheme.darkCard,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: unsettledDebtsCount > 0
+                            ? AppTheme.goldPrimary.withAlpha(80)
+                            : Colors.white12,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppTheme.goldPrimary.withAlpha(35),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.handshake_rounded, color: AppTheme.goldBright, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Text(
+                                    'SỔ GHI NỢ VÀNG & TIỀN',
+                                    style: TextStyle(
+                                      color: AppTheme.goldLight,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 1.1,
+                                    ),
+                                  ),
+                                  if (unsettledDebtsCount > 0) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.lossRed.withAlpha(50),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        '$unsettledDebtsCount khoản',
+                                        style: const TextStyle(color: AppTheme.lossRed, fontSize: 10, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                provider.debts.isEmpty
+                                    ? 'Chưa có khoản nợ nào • Chạm để ghi sổ'
+                                    : 'Tôi nợ: ${GoldFormatters.formatChi(provider.totalGoldPayable, isHidden: isHidden)} | Phải thu: ${GoldFormatters.formatChi(provider.totalGoldReceivable, isHidden: isHidden)}',
+                                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.white38),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // 4. Gold Types Section (Portfolio Breakdown)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -161,7 +258,7 @@ class DashboardTab extends StatelessWidget {
 
                 const SizedBox(height: 20),
 
-                // 4. Recent Transactions Section
+                // 5. Recent Transactions Section
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -175,7 +272,7 @@ class DashboardTab extends StatelessWidget {
                       ),
                     ),
                     TextButton(
-                      onPressed: () => onNavigateTab(1), // Chuyển sang tab Giao dịch
+                      onPressed: () => onNavigateTab(1),
                       child: const Text(
                         'Xem tất cả',
                         style: TextStyle(color: AppTheme.goldPrimary, fontSize: 12, fontWeight: FontWeight.w700),

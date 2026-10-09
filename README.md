@@ -37,6 +37,19 @@
 - Bộ lọc theo loại giao dịch, lọc theo loại vàng và tìm kiếm ghi chú/cửa hàng.
 - Xem chi tiết, chỉnh sửa và xóa giao dịch an toàn.
 
+### 4. 🤝 Sổ Ghi Nợ Vàng & Tiền (Debt Ledger)
+- **Hỗ trợ 2 chiều rõ ràng**:
+  - 🔴 **Tôi nợ người khác (Khoản phải trả)**: Vay mượn vàng từ người thân, nợ tiền tiệm vàng...
+  - 🟢 **Người khác nợ tôi (Khoản phải thu)**: Cho mượn vàng, cho vay tiền...
+- **Tài sản nợ linh hoạt**:
+  - **Nợ bằng Vàng**: Ghi nhận số chỉ/lượng theo từng loại vàng (Nhẫn 9999, SJC...), tự động quy đổi giá trị theo giá thị trường hôm nay!
+  - **Nợ bằng Tiền**: Ghi nhận số tiền mặt VNĐ.
+- **Theo dõi tiến độ & Lịch sử trả nợ**:
+  - Ghi nhận trả nợ theo từng đợt (trả bớt bao nhiêu chỉ/tiền vào ngày nào).
+  - Thanh tiến độ % đã trả, số lượng còn nợ lại.
+  - Cảnh báo khoản nợ **QUÁ HẠN** theo hạn chót (Due date).
+  - Tính toán **Vàng ròng sau bù trừ nợ**: `Vàng trong hũ + Vàng cho mượn - Vàng đang nợ`.
+
 ### 4. 🟡 Đa Dạng Loại Vàng & Danh Mục Riêng Biệt
 - Cấu hình sẵn các loại vàng thông dụng:
   - 🟡 **Vàng nhẫn 9999** (99.99%)

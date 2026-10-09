@@ -4,6 +4,7 @@ import '../models/gold_type.dart';
 import '../models/gold_transaction.dart';
 import '../models/gold_price.dart';
 import '../models/gold_goal.dart';
+import '../models/gold_debt.dart';
 import '../models/portfolio.dart';
 import '../models/app_settings.dart';
 import '../services/storage_service.dart';
@@ -13,6 +14,7 @@ class PortfolioProvider extends ChangeNotifier {
 
   List<GoldType> _goldTypes = [];
   List<GoldTransaction> _transactions = [];
+  List<GoldDebt> _debts = [];
   Map<String, GoldPrice> _prices = {};
   GoldGoal _goal = GoldGoal.defaultGoal;
   AppSettings _settings = const AppSettings();
@@ -26,6 +28,7 @@ class PortfolioProvider extends ChangeNotifier {
   // --- Getters ---
   List<GoldType> get goldTypes => List.unmodifiable(_goldTypes);
   List<GoldTransaction> get transactions => List.unmodifiable(_transactions);
+  List<GoldDebt> get debts => List.unmodifiable(_debts);
   Map<String, GoldPrice> get prices => Map.unmodifiable(_prices);
   GoldGoal get goal => _goal;
   AppSettings get settings => _settings;
@@ -35,6 +38,7 @@ class PortfolioProvider extends ChangeNotifier {
   void _loadData() {
     _goldTypes = _storage.loadGoldTypes();
     _transactions = _storage.loadTransactions();
+    _debts = _storage.loadDebts();
     _prices = _storage.loadPrices();
     _goal = _storage.loadGoal();
     _settings = _storage.loadSettings();
@@ -132,14 +136,12 @@ class PortfolioProvider extends ChangeNotifier {
           break;
 
         case TransactionType.adjustment:
-          // Điều chỉnh số lượng
           final newQty = max(0.0, tx.quantity);
           if (newQty == 0) {
             runningQty[tid] = 0;
             runningCost[tid] = 0;
           } else {
             runningQty[tid] = newQty;
-            // Nếu có tổng tiền nhập vào thì cập nhật, ngược lại giữ nguyên tỉ lệ
             if (tx.totalAmount > 0) {
               runningCost[tid] = tx.totalAmount;
             }
@@ -161,9 +163,7 @@ class PortfolioProvider extends ChangeNotifier {
       final realized = runningRealizedProfit[type.id] ?? 0.0;
       final avgCost = qty > 0 ? (cost / qty) : 0.0;
 
-      // Lấy giá thị trường hiện tại
       final priceEntry = _prices[type.id];
-      // Nếu bật useMarketSellPrice thì dùng giá bán ra từ tiệm, hoặc giá tiệm thu mua vào
       final marketPrice = priceEntry != null
           ? (_settings.useMarketSellPrice ? priceEntry.sellPrice : priceEntry.buyPrice)
           : 0.0;
@@ -206,9 +206,59 @@ class PortfolioProvider extends ChangeNotifier {
     );
   }
 
+  // --- Debt Metrics (Sổ Ghi Nợ) ---
+  /// Tổng vàng người khác nợ mình (Khoản phải thu - chỉ)
+  double get totalGoldReceivable {
+    return _debts
+        .where((d) => !d.isSettled && d.direction == DebtDirection.theyOwe && d.assetType == DebtAssetType.gold)
+        .fold(0.0, (sum, d) => sum + d.remainingAmount);
+  }
+
+  /// Tổng vàng mình đang nợ người khác (Khoản phải trả - chỉ)
+  double get totalGoldPayable {
+    return _debts
+        .where((d) => !d.isSettled && d.direction == DebtDirection.iOwe && d.assetType == DebtAssetType.gold)
+        .fold(0.0, (sum, d) => sum + d.remainingAmount);
+  }
+
+  /// Tổng tiền người khác nợ mình (VNĐ)
+  double get totalMoneyReceivable {
+    return _debts
+        .where((d) => !d.isSettled && d.direction == DebtDirection.theyOwe && d.assetType == DebtAssetType.money)
+        .fold(0.0, (sum, d) => sum + d.remainingAmount);
+  }
+
+  /// Tổng tiền mình đang nợ người khác (VNĐ)
+  double get totalMoneyPayable {
+    return _debts
+        .where((d) => !d.isSettled && d.direction == DebtDirection.iOwe && d.assetType == DebtAssetType.money)
+        .fold(0.0, (sum, d) => sum + d.remainingAmount);
+  }
+
+  /// Lượng vàng ròng (Vàng trong hũ + Vàng cho mượn - Vàng đang nợ)
+  double get netGoldQuantity {
+    return portfolioSummary.totalQuantity + totalGoldReceivable - totalGoldPayable;
+  }
+
+  /// Lấy giá thị trường hiện tại của một khoản nợ vàng
+  double getDebtMarketPrice(GoldDebt debt) {
+    if (debt.goldTypeId == null) return 0.0;
+    final priceEntry = _prices[debt.goldTypeId];
+    if (priceEntry == null) return 0.0;
+    return _settings.useMarketSellPrice ? priceEntry.sellPrice : priceEntry.buyPrice;
+  }
+
+  /// Giá trị quy đổi tiền mặt của một khoản nợ theo thị trường hôm nay
+  double getDebtCurrentValue(GoldDebt debt) {
+    if (debt.assetType == DebtAssetType.money) {
+      return debt.remainingAmount;
+    }
+    final price = getDebtMarketPrice(debt);
+    return debt.remainingAmount * price;
+  }
+
   // --- Transactions Operations ---
   Future<void> addTransaction(GoldTransaction tx) async {
-    // Tính toán costBasisAtSale nếu là giao dịch Bán
     GoldTransaction finalTx = tx;
     if (tx.type == TransactionType.sell) {
       final currentPortfolio = portfolioSummary.items[tx.goldTypeId];
@@ -241,6 +291,46 @@ class PortfolioProvider extends ChangeNotifier {
     _transactions.removeWhere((t) => t.id == id);
     await _storage.saveTransactions(_transactions);
     notifyListeners();
+  }
+
+  // --- Debt Operations ---
+  Future<void> addDebt(GoldDebt debt) async {
+    _debts.insert(0, debt);
+    await _storage.saveDebts(_debts);
+    notifyListeners();
+  }
+
+  Future<void> updateDebt(GoldDebt debt) async {
+    final index = _debts.indexWhere((d) => d.id == debt.id);
+    if (index != -1) {
+      _debts[index] = debt;
+      await _storage.saveDebts(_debts);
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteDebt(String id) async {
+    _debts.removeWhere((d) => d.id == id);
+    await _storage.saveDebts(_debts);
+    notifyListeners();
+  }
+
+  Future<void> addDebtPayment(String debtId, DebtPayment payment) async {
+    final index = _debts.indexWhere((d) => d.id == debtId);
+    if (index != -1) {
+      final currentDebt = _debts[index];
+      final newPayments = List<DebtPayment>.from(currentDebt.payments)..add(payment);
+      final totalPaid = newPayments.fold(0.0, (sum, p) => sum + p.amount);
+      final isSettled = totalPaid >= (currentDebt.originalAmount - 0.0001);
+
+      final updated = currentDebt.copyWith(
+        payments: newPayments,
+        isSettled: isSettled,
+      );
+      _debts[index] = updated;
+      await _storage.saveDebts(_debts);
+      notifyListeners();
+    }
   }
 
   // --- Gold Price Operations ---
